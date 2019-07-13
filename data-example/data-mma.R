@@ -377,3 +377,30 @@ res <- c(res,"boot_id"=boot_id)
 
 save(res,file=paste0("data-mma-boots-",seed,".Rdata"))
 q()
+
+# results ---------------------------------------------------------------------
+setwd("boots/")
+myfiles <- list.files()
+myfiles <- myfiles[grep(pattern=".Rdata",myfiles)]
+boot_results <- NULL
+for (ll in myfiles) {
+  load(ll)
+  boot_results[[ll]] <- res
+  rm(res)
+}
+res <- data.table(do.call(rbind,boot_results))
+setkey(res); rm(boot_results)
+
+# check how many bootstrap samples failed
+saved <- sapply(myfiles, function(x) {
+  xsplit = strsplit(x,"-")[[1]]
+  as.integer(strsplit(xsplit[length(xsplit)],".Rdata")[[1]])
+})
+(max(saved)-length(saved))/max(saved)
+
+res_summary <- t(rbind(apply(res, 2, sd),
+                       apply(res, 2, quantile, probs=c(.025,.975))))
+apply(res_summary, 1, function(x) {
+  x_ <- round(x,2)
+  paste0(x_[1]," & (",x_[2],",",x_[3],")")
+})

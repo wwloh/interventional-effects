@@ -154,7 +154,7 @@ source("data-c19-1prep.R")
 library("xtable")
 ie_list_all <- NULL
 for (mo in 1:6) {
-  load(file=paste0("data-c19-boots-",mo,".Rdata"))
+  load(file=paste0("data-c19-boots-maineffs_only-",mo,".Rdata"))
   ie_list_all <- c(ie_list_all,list(ie_list[[mo]]))
   rm(ie_list)
 }

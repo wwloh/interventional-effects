@@ -254,9 +254,9 @@ for (i in 1:length(effects)) {
   resout.ci <- cbind(
     resout.ci[, list(contY,b1,a2,e21,est.type)],
     t(apply(resout.ci[,grep("X",names(resout.ci),value=TRUE),with=FALSE], 1, 
-            function(boots) coxed::bca(boots[!is.na(boots)], conf.level=0.95)))
+            function(boots) quantile(boots,probs=c(.025,.975),na.rm=TRUE)))
   )
-  setnames(resout.ci,paste0("V",1:2),c("l","u"))
+  setnames(resout.ci,c("2.5%","97.5%"),c("l","u"))
   # insert true values
   resout.ci <- merge(resout.ci,resout.eff[,1:6],by=c("contY","b1","a2","e21"))
   setkey(resout.ci)

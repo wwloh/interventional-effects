@@ -12,7 +12,7 @@ simsettings <- expand.grid(
   "a2"=c(0,0.4,0.8), # A --> M2
   "e21"=c(0,0.4,0.8), # M1 --> M2
   "b1"=c(0,0.8), # M1 --> Y
-  "n"=c(5e2,5e4) # population or sample
+  "n"=c(50,250,5e2,5e4) # population or sample
 )
 simsettings <- simsettings[simsettings$a2==0 | simsettings$e21==0,]
 rownames(simsettings) <- NULL
@@ -184,27 +184,29 @@ for (i in 1:length(effects)) {
   setkey(true_eff)
   # sample estimates
   resout.eff <- simres[n<5e4, lapply(.SD,function(x) c(mean(x),sd(x))), 
-                       by=list(contY,b1,a2,e21), 
+                       by=list(contY,b1,a2,e21,n), 
                        .SDcols=grep(eff,names(simres),value=TRUE)]
-  setnames(resout.eff, 5:ncol(resout.eff), est_types)
+  setnames(resout.eff, ncol(resout.eff)-c(1:0), est_types)
   resout.eff[, est := rep(c("pt","se"),times=nrow(resout.eff)/2)]
   resout.eff[, eff := names(eff)]
   setkey(resout.eff)
   resout.eff <- dcast.data.table(resout.eff, 
-                                 formula=contY+b1+e21+a2+eff ~ est,
+                                 formula=contY+b1+e21+a2+n+eff ~ est,
                                  value.var=est_types)
   resout.eff <- merge(resout.eff,true_eff,all.x=TRUE)
-  setcolorder(resout.eff,c(1:5,ncol(resout.eff),6:(ncol(resout.eff)-1)))
+  setcolorder(resout.eff,c(1:6,ncol(resout.eff),7:(ncol(resout.eff)-1)))
   resout[[eff]] <- resout.eff
 }
 resout <- rbindlist(resout)
+setcolorder(resout, c("contY","eff","b1","e21","a2","n","true",
+                      "Wt_pt","Wt_se","MC_pt","MC_se"))
+setkey(resout)
 library("xtable")
 print(xtable(resout[,-c(1)]),include.rownames=FALSE)
 
 simwts <- data.table(do.call(rbind,resweights_list))
 setkey(simwts)
 print(xtable(dcast.data.table(
-  simwts[W>0 & n==500, lapply(.SD,sd), 
-         by=list(contY,a2,e21,b1,a.i), .SDcols="W"],
-  formula=b1+e21+a2~a.i,
+  simwts[W>0 & n<5e4, lapply(.SD,sd), by=list(contY,a2,e21,b1,n,a.i), .SDcols="W"],
+  formula=b1+e21+a2+n~a.i,
   value.var="W")),include.rownames=FALSE)

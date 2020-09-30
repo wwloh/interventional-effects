@@ -12,7 +12,7 @@ simsettings <- expand.grid(
   "a2"=c(0,0.8), # A --> M2
   "e21"=c(0,0.8), # M1 --> M2
   "b1"=c(0), # M1 --> Y
-  "n"=c(5e2,5e4) # population or sample
+  "n"=c(50,250,5e2,5e4) # population or sample
 )
 simsettings <- simsettings[simsettings$a2==0 | simsettings$e21==0,]
 row.names(simsettings) <- NULL
@@ -218,6 +218,9 @@ for (ll in myfiles) {
 simres <- data.table(do.call(rbind,res_list))
 setkey(simres)
 
+# remove extreme estimates
+simres <- simres[apply(simres[,grep("wt",names(simres),value=TRUE),with=FALSE],1,max)<1e6]
+
 effects <- c("ie1","ieC1","ie2","ieC2","ie_mu","ie_Cmu","ie_jt","ie_Cjt","de")
 names(effects) <- c("IE1","IE1_L2","IE2","IE2_L2","Mutual IE","Mutual IE_L2",
                     "Joint IE","Joint IE_L2","DE")
@@ -232,19 +235,22 @@ for (i in 1:length(effects)) {
   setkey(true_eff)
   # sample estimates
   resout.eff <- simres[n<5e4, lapply(.SD,function(x) c(mean(x),sd(x))), 
-                       by=list(contY,b1,a2,e21), 
+                       by=list(contY,b1,a2,e21,n), 
                        .SDcols=grep(eff,names(simres),value=TRUE)]
-  setnames(resout.eff, 5:ncol(resout.eff), est_types)
+  setnames(resout.eff, ncol(resout.eff)-c(2:0), est_types)
   resout.eff[, est := rep(c("pt","se"),times=nrow(resout.eff)/2)]
   resout.eff[, eff := names(eff)]
   setkey(resout.eff)
   resout.eff <- dcast.data.table(resout.eff, 
-                                 formula=contY+b1+e21+a2+eff ~ est,
+                                 formula=contY+b1+e21+a2+n+eff ~ est,
                                  value.var=est_types)
   resout.eff <- merge(resout.eff,true_eff,all.x=TRUE)
-  setcolorder(resout.eff,c(1:5,ncol(resout.eff),6:7,10:11,8:9))
   resout[[eff]] <- resout.eff
 }
 resout <- rbindlist(resout)
+setcolorder(resout, c("contY","eff","b1","e21","a2","n","true",
+                      "Wt_pt","Wt_se","MC (Y mis)_pt","MC (Y mis)_se",
+                      "MC_pt","MC_se"))
+setkey(resout)
 library("xtable")
-print(xtable(resout[,-c(1:2)]),include.rownames=FALSE)
+print(xtable(resout[,-c(1,3)]),include.rownames=FALSE)

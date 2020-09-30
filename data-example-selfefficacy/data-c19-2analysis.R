@@ -1,6 +1,5 @@
 source("data-c19-1prep.R")
 Data
-library("xtable")
 
 (m_names <- grep("M",colnames(Data),value=TRUE))
 (p <- length(m_names)) # number of mediators
@@ -108,8 +107,16 @@ allperms <- allperms[apply(allperms, 1, function(x)
   length(unique(x))==length(x)),]
 row.names(allperms) <- colnames(allperms) <- NULL
 
+# initialize for parallel cluster jobs
+args <- 1
+if (!grepl("apple",sessionInfo()[[1]]$platform)) {
+  args <- commandArgs(trailingOnly=TRUE) # for CMD BATCH '--args 1'
+}
+(seed <- as.integer(args[1]))
+rm(args)
+
 ie_list <- list()
-for (mo in 1:nrow(allperms)) {
+for (mo in seed) {
   neworder <- as.integer(allperms[mo,])
   newdata <- data.table(Data)
   setcolorder(newdata,c("id",l_names,paste0("M",neworder),"Y"))
@@ -126,7 +133,8 @@ for (mo in 1:nrow(allperms)) {
 
   # bootstrap CIs 
   n <- nrow(Data)
-  nboots <- n
+  nboots <- 10000
+  ptm=proc.time()[3]
   res_boot <- lapply(1:nboots, function(idx) {
     bootdat <- newdata[sample(n,n,TRUE),]
     bootdat$id <- 1:n
@@ -135,16 +143,26 @@ for (mo in 1:nrow(allperms)) {
     names(bootres$mc) <- res_names
     return( bootres$mc )
   })
+  proc.time()[3]-ptm # 15s per bootstrap
   
   ie_list[[mo]] <- c(res, list(res_boot))
   cat(neworder,"\n")
+  save(ie_list,file=paste0("data-c19-boots-",mo,".Rdata"))
 }
-save(ie_list,file="data-c19-boots.Rdata")
 q()
 
 # results =====================================================================
-library("coxed")
-load(file="data-c19-boots.Rdata")
+rm(list=ls())
+source("data-c19-1prep.R")
+library("xtable")
+ie_list_all <- NULL
+for (mo in 1:6) {
+  load(file=paste0("data-c19-boots-",mo,".Rdata"))
+  ie_list_all <- c(ie_list_all,list(ie_list[[mo]]))
+  rm(ie_list)
+}
+ie_list <- ie_list_all; rm(ie_list_all)
+
 res_all <- list()  
 for (mo in 1:length(ie_list)) {
   res_iw <- ie_list[[mo]]$wt
@@ -168,7 +186,7 @@ for (mo in 1:length(ie_list)) {
   res_iw$eff_coef <- cond_effs(res_iw$eff_coef)
   res_boot <- apply(res_boot, 2, cond_effs)
   res_ci <- data.frame(t(apply(res_boot,1,function(boots) {
-    coxed::bca(boots[!is.na(boots)], conf.level=0.95)
+    quantile(boots,probs=c(.025,.975),na.rm=TRUE)
   })))
   colnames(res_ci) <- c("l","u")
   res_ci <- cbind("perm"=mo,"wt"=res_iw$eff_coef,"mc"=res,res_ci)
